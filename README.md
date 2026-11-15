@@ -6,66 +6,66 @@
 [![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/cbrandlehner/marstek-power-meter)
 [![GitHub stars](https://img.shields.io/github/stars/cbrandlehner/marstek-power-meter?style=social&label=Star%20on%20GitHub)](https://github.com/cbrandlehner/marstek-power-meter)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/cbrandlehner?label=Sponsor)](https://github.com/sponsors/cbrandlehner)
-[![Unofficial](https://img.shields.io/badge/vendor_support-none-lightgrey.svg)](#hinweis)
+[![Unofficial](https://img.shields.io/badge/vendor_support-none-lightgrey.svg)](#notice)
 
-Home-Assistant-Integration für das Marstek CT002 (`HME-4` und neueres `TPM2-0`) und das CT003 (`HME-3`). Sie liest Netzleistung und WLAN-Empfang per UDP vom Zähler. Die Abfrage nutzt eine eigene Poller-MAC, Phase 0, Leistung 0 und `participate=0`, damit sie nicht in die Aggregation der Akkus eingeht.
+Home Assistant integration for the Marstek CT002 (`HME-4` and the newer `TPM2-0`) and the CT003 (`HME-3`). It reads grid power and Wi-Fi signal strength from the meter over UDP. Each poll uses its own poller MAC, phase 0, 0 W, and `participate=0`, so the poll stays out of the battery aggregation.
 
 | | |
 |---|---|
 | Domain | `marstek_power_meter` |
 | Name in Home Assistant | Marstek Power Meter |
 | Version | 1.0.1 |
-| Abfrage | UDP-Port 12345, alle 5 Sekunden, bis zu 3 Versuche je Abfrage |
-| Lizenz | [MPL-2.0](LICENSE) |
+| Polling | UDP port 12345, every 5 seconds, up to 3 attempts per poll |
+| License | [MPL-2.0](LICENSE) |
 
-## Hinweis
+## Notice
 
-Marstek Power Meter ist ein unabhängiges Open-Source-Projekt ohne Herstellersupport. Es steht in keiner Verbindung zu Marstek und wird von Marstek nicht unterstützt. Der Betrieb erfolgt auf eigene Gefahr.
+Marstek Power Meter is an independent open-source project with no vendor support. It is not affiliated with Marstek, and Marstek does not support it. Use it at your own risk.
 
 ## Installation
 
 ### HACS
 
-1. HACS öffnen, dann **Integrationen** und **Benutzerdefinierte Repositories**.
-2. `https://github.com/cbrandlehner/marstek-power-meter` eintragen, Kategorie **Integration**.
-3. **Marstek Power Meter** installieren und Home Assistant neu starten.
-4. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach **Marstek Power Meter** suchen.
+1. Open HACS, then **Integrations** and **Custom repositories**.
+2. Add `https://github.com/cbrandlehner/marstek-power-meter` with category **Integration**.
+3. Install **Marstek Power Meter** and restart Home Assistant.
+4. Go to **Settings → Devices & services → Add integration** and search for **Marstek Power Meter**.
 
-Ab Home Assistant 2026.11 liegt HACS im Marketplace. Ein benutzerdefiniertes Repository wird dort genauso hinzugefügt.
+From Home Assistant 2026.11, HACS lives in the Marketplace. A custom repository is added there the same way.
 
-### Manuell
+### Manual
 
-Den Ordner `custom_components/marstek_power_meter` nach `<config>/custom_components/marstek_power_meter` kopieren und Home Assistant neu starten. Danach die Integration wie oben hinzufügen.
+Copy the folder `custom_components/marstek_power_meter` to `<config>/custom_components/marstek_power_meter` and restart Home Assistant. Then add the integration as described above.
 
-## Einrichtung
+## Configuration
 
-Die MAC-Adresse des CT-Zählers steht in der Marstek-App unter Geräteverwaltung. Es sind 12 Hex-Zeichen, mit oder ohne Doppelpunkte. `000000000000` ist ebenfalls gültig. Die Integration übernimmt danach die MAC aus der Antwort.
+The CT MAC is on the Device Management page in the Marstek app. It is 12 hex characters, with or without colons. `000000000000` is also valid. The integration then stores the MAC from the reply.
 
-Die Poller-MAC ist eine eigene Kennung dieser Integration. Die Vorgabe ist eine lokal vergebene Adresse. Sie darf nicht die MAC eines Akkus sein, weil der Zähler pro MAC einen Slot führt.
+The poller MAC is an identity of this integration. The suggested value is a locally assigned address. It must not be a battery MAC, because the meter keeps one slot per MAC.
 
-| Feld | Bedeutung |
+| Field | Meaning |
 |---|---|
-| IP-Adresse | Adresse des CT-Zählers im LAN |
-| Poller-MAC | Eigene Kennung dieser Abfrage, nicht die MAC eines Akkus |
-| MAC-Adresse des CT-Zählers | Zähler selbst, aus der Marstek-App |
-| Speicher-Typ | `HMG` Venus, `HMB` B2500 v1, `HMA` B2500 v2, `HMK` Greensolar v3 |
-| Speicher-Nummer | Typnummer, Vorgabe `50` (ergibt zum Beispiel `HMG-50`) |
-| CT-Typ | `HME-4` für das CT002, `TPM2-0` für ein neueres CT002, `HME-3` für das CT003 |
+| IP address | Address of the CT meter on the LAN |
+| Poller MAC | Identity of this poll, not a battery MAC |
+| CT MAC | The meter itself, from the Marstek app |
+| Storage type | `HMG` Venus, `HMB` B2500 v1, `HMA` B2500 v2, `HMK` Greensolar v3 |
+| Storage number | Type number, default `50` (for example `HMG-50`) |
+| CT type | `HME-4` for the CT002, `TPM2-0` for a newer CT002, `HME-3` for the CT003 |
 
-Direkt nach dem Hinzufügen sichtbar sind Gesamtleistung, die drei Phasen und der WLAN-RSSI. Tarif-Energiezähler gibt es nur bei CT003 und neuerem CT002 (`TPM2-0`). Ein originales CT002 (`HME-4`) sendet sie nicht.
+Total power, the three phases, and Wi-Fi RSSI are visible right after setup. Tariff energy counters exist only on the CT003 and the newer CT002 (`TPM2-0`). An original CT002 (`HME-4`) does not send them.
 
-## Herkunft
+## Origin
 
-Marstek Power Meter ist ein eigenständiges Projekt. Es beruht auf [hass_marstek-smart-meter](https://github.com/d-shmt/hass_marstek-smart-meter). Der Autor des Originals pflegt das Repository nicht mehr und hat auf Pull Requests nicht reagiert. Deshalb wurde dieses Projekt neu angelegt.
+Marstek Power Meter is a standalone project. It is based on [hass_marstek-smart-meter](https://github.com/d-shmt/hass_marstek-smart-meter). The author of the original no longer maintains the repository and did not respond to pull requests, so this project was created.
 
-## Lizenz
+## License
 
-Dieses Programm steht unter der [Mozilla Public License 2.0](LICENSE). Der vollständige Text liegt in `LICENSE`. Jede Quelldatei unter `custom_components/marstek_power_meter/` trägt diesen Hinweis:
+This program is licensed under the [Mozilla Public License 2.0](LICENSE). The full text is in `LICENSE`. Each source file under `custom_components/marstek_power_meter/` carries this notice:
 
 > This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-## Unterstützung
+## Support
 
-- [Repository auf GitHub markieren](https://github.com/cbrandlehner/marstek-power-meter)
-- [Fehler und Fragen im Issue-Tracker](https://github.com/cbrandlehner/marstek-power-meter/issues)
-- [Maintainer über GitHub Sponsors unterstützen](https://github.com/sponsors/cbrandlehner)
+- [Star this repository on GitHub](https://github.com/cbrandlehner/marstek-power-meter)
+- [Report bugs and questions in the issue tracker](https://github.com/cbrandlehner/marstek-power-meter/issues)
+- [Sponsor the maintainer on GitHub Sponsors](https://github.com/sponsors/cbrandlehner)
