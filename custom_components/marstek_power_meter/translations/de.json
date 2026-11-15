@@ -45,17 +45,17 @@
   "selector": {
     "ct_type": {
       "options": {
-        "HME-4": "HME-4 (CT002)",
-        "TPM2-0": "TPM2-0 (CT002 neu)",
-        "HME-3": "HME-3 (CT003)"
+        "hme-4": "HME-4 (CT002)",
+        "tpm2-0": "TPM2-0 (CT002 neu)",
+        "hme-3": "HME-3 (CT003)"
       }
     },
     "device_type_prefix": {
       "options": {
-        "HMG": "HMG (Marstek Venus)",
-        "HMB": "HMB (B2500 Speicher v1)",
-        "HMA": "HMA (B2500 Speicher v2)",
-        "HMK": "HMK (Greensolar Speicher v3)"
+        "hmg": "HMG (Marstek Venus)",
+        "hmb": "HMB (B2500 Speicher v1)",
+        "hma": "HMA (B2500 Speicher v2)",
+        "hmk": "HMK (Greensolar Speicher v3)"
       }
     }
   }

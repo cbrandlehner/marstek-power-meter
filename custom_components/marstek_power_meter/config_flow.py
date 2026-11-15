@@ -24,8 +24,18 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-CT_TYPES = ["HME-4", "TPM2-0", "HME-3"]
-DEVICE_TYPE_PREFIXES = ["HMG", "HMB", "HMA", "HMK"]
+# Selector keys stay lowercase. The meter compares the wire values byte for byte.
+CT_TYPE_BY_KEY = {
+    "hme-4": "HME-4",
+    "tpm2-0": "TPM2-0",
+    "hme-3": "HME-3",
+}
+DEVICE_PREFIX_BY_KEY = {
+    "hmg": "HMG",
+    "hmb": "HMB",
+    "hma": "HMA",
+    "hmk": "HMK",
+}
 
 
 def new_poller_mac() -> str:
@@ -41,17 +51,17 @@ def _user_schema(poller_mac: str) -> vol.Schema:
             vol.Required(CONF_HOST): str,
             vol.Required("battery_mac", default=poller_mac): str,
             vol.Required("ct_mac"): str,
-            vol.Required("device_type_prefix", default="HMG"): SelectSelector(
+            vol.Required("device_type_prefix", default="hmg"): SelectSelector(
                 SelectSelectorConfig(
-                    options=DEVICE_TYPE_PREFIXES,
+                    options=list(DEVICE_PREFIX_BY_KEY),
                     translation_key="device_type_prefix",
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Required("device_type_number", default="50"): str,
-            vol.Required("ct_type", default="HME-4"): SelectSelector(
+            vol.Required("ct_type", default="hme-4"): SelectSelector(
                 SelectSelectorConfig(
-                    options=CT_TYPES,
+                    options=list(CT_TYPE_BY_KEY),
                     translation_key="ct_type",
                     mode=SelectSelectorMode.DROPDOWN,
                 )
@@ -82,7 +92,7 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
             pass
 
     reported_type = result.get("meter_dev_type") if isinstance(result, dict) else None
-    if isinstance(reported_type, str) and reported_type in CT_TYPES:
+    if isinstance(reported_type, str) and reported_type in CT_TYPE_BY_KEY.values():
         data["ct_type"] = reported_type
 
     if any(result.get(key) is not None for key in ENERGY_LABELS):
@@ -105,8 +115,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             final_data = dict(user_input)
+            prefix = DEVICE_PREFIX_BY_KEY[final_data["device_type_prefix"]]
+            final_data["ct_type"] = CT_TYPE_BY_KEY[final_data["ct_type"]]
             final_data["device_type"] = (
-                f"{final_data['device_type_prefix']}-{final_data['device_type_number']}"
+                f"{prefix}-{final_data['device_type_number']}"
             )
             final_data.pop("device_type_prefix", None)
             final_data.pop("device_type_number", None)
