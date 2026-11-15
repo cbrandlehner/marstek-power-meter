@@ -1,0 +1,11 @@
+{
+  "domain": "marstek_power_meter",
+  "name": "Marstek Power Meter",
+  "config_flow": true,
+  "documentation": "https://github.com/cbrandlehner/marstek-power-meter",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/cbrandlehner/marstek-power-meter/issues",
+  "version": "1.0.1",
+  "codeowners": ["@cbrandlehner"],
+  "requirements": []
+}

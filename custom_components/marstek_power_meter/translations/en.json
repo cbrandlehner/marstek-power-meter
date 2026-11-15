@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Marstek Power Meter",
+        "description": "The CT MAC is the 12-character hex string from Device Management in the Marstek app. 000000000000 is accepted and replaced by the MAC from the reply. The poller MAC is an identity for this integration, not a battery. Leave the suggested value unless you run a second poller.",
+        "data": {
+          "host": "IP Address of the CT Meter",
+          "battery_mac": "Poller MAC",
+          "ct_mac": "MAC Address of the CT Meter",
+          "device_type_prefix": "Storage Type",
+          "device_type_number": "Storage Number",
+          "ct_type": "CT Type"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the meter. Check the IP address, CT type, and CT MAC.",
+      "invalid_mac": "A MAC must be 12 hex digits. The poller MAC and the CT MAC must differ.",
+      "invalid_auth": "Invalid credentials. Check the MAC addresses.",
+      "unknown": "An unknown error occurred."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "total_power": { "name": "Total Power" },
+      "a_phase_power": { "name": "Phase A Power" },
+      "b_phase_power": { "name": "Phase B Power" },
+      "c_phase_power": { "name": "Phase C Power" },
+      "wifi_rssi": { "name": "WLAN RSSI" },
+      "meter_dev_type": { "name": "Meter Device Type" },
+      "meter_mac_code": { "name": "Meter MAC" },
+      "hhm_dev_type": { "name": "HHM Device Type" },
+      "hhm_mac_code": { "name": "HHM MAC" },
+      "info_idx": { "name": "Info Index" },
+      "low_price_ele_in": { "name": "Off-peak Import Energy" },
+      "normal_price_ele_in": { "name": "Peak Import Energy" },
+      "low_price_ele_out": { "name": "Off-peak Export Energy" },
+      "normal_price_ele_out": { "name": "Peak Export Energy" }
+    }
+  },
+  "selector": {
+    "ct_type": {
+      "options": {
+        "HME-4": "HME-4 (CT002)",
+        "TPM2-0": "TPM2-0 (newer CT002)",
+        "HME-3": "HME-3 (CT003)"
+      }
+    },
+    "device_type_prefix": {
+      "options": {
+        "HMG": "HMG (Marstek Venus)",
+        "HMB": "HMB (B2500 storage v1)",
+        "HMA": "HMA (B2500 storage v2)",
+        "HMK": "HMK (Greensolar storage v3)"
+      }
+    }
+  }
+}
