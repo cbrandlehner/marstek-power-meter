@@ -1,6 +1,6 @@
 # Marstek Power Meter
 
-[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-integration-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-brightgreen.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/cbrandlehner/marstek-power-meter)
@@ -24,14 +24,20 @@ Marstek Power Meter is an independent open-source project with no vendor support
 
 ## Installation
 
-### HACS
+### Marketplace
 
-1. Open HACS, then **Integrations** and **Custom repositories**.
+On Home Assistant 2026.11 and newer, open **Settings → Marketplace** and search for **Marstek Power Meter**. Install it, then restart Home Assistant if it asks you to. Go to **Settings → Devices & services → Add integration** and search for **Marstek Power Meter**.
+
+On Home Assistant 2026.10 and older, open HACS, then **Integrations**, and search for **Marstek Power Meter**. Install it, restart Home Assistant, then add the integration as above.
+
+### Custom repository
+
+Use this when search does not list it yet.
+
+1. On Home Assistant 2026.11 and newer, open **Settings → Marketplace** and select **Add from link**. On older Home Assistant, open HACS, then **Integrations** and **Custom repositories**.
 2. Add `https://github.com/cbrandlehner/marstek-power-meter` with category **Integration**.
 3. Install **Marstek Power Meter** and restart Home Assistant.
-4. Go to **Settings → Devices & services → Add integration** and search for **Marstek Power Meter**.
-
-From Home Assistant 2026.11, HACS lives in the Marketplace. A custom repository is added there the same way.
+4. Add the integration as described above.
 
 ### Manual
 
