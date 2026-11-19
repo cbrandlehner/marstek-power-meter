@@ -60,6 +60,178 @@ The poller MAC is an identity of this integration. The suggested value is a loca
 
 Total power, the three phases, and Wi-Fi RSSI are visible right after setup. Tariff energy counters exist only on the CT003 and the newer CT002 (`TPM2-0`). An original CT002 (`HME-4`) does not send them.
 
+When the meter does not answer, use [Troubleshooting](#troubleshooting).
+
+## Troubleshooting
+
+Setup sends one UDP datagram to port 12345 on the meter and waits up to 3 seconds for the reply. The datagram is an inspection poll: phase 0, 0 W, and `participate=0`. It stays out of the battery aggregation. The probes below send that same poll.
+
+### Reachability and Docker
+
+The meter listens on UDP port 12345. Home Assistant sends to that port, and the reply has to come back to Home Assistant.
+
+- Keep the meter and Home Assistant on a LAN path that forwards UDP. Guest networks and Wi-Fi client isolation drop these packets.
+- On a firewall or between VLANs, allow UDP from Home Assistant to the meter address, destination port 12345, and allow the reply back to Home Assistant.
+- When the host firewall limits outgoing traffic, open that path. With `ufw`, replace the address with the meter IP:
+
+```bash
+sudo ufw allow out proto udp to 192.168.1.50 port 12345
+```
+
+On Linux, run the Home Assistant container on the host network so it uses the host route to the meter:
+
+```yaml
+network_mode: host
+```
+
+Leave UDP port 12345 unpublished. With host networking, the host firewall rule above is the one that applies.
+
+On Docker Desktop for macOS and Windows, host networking stays inside the Docker virtual machine. Run the probe on the host, then run it again inside the container. A reply on the host and silence in the container means the container has no route to the meter. Run Home Assistant in a bridged virtual machine, or use Home Assistant OS, on the same LAN as the meter.
+
+Home Assistant OS already attaches the system to the LAN. A router rule between VLANs still has to allow UDP port 12345 to the meter.
+
+### CT type and settings
+
+| Meter | CT type in the form | Tariff energy counters |
+|---|---|---|
+| CT002, original | `HME-4` | no |
+| CT002, newer | `TPM2-0` | yes |
+| CT003 | `HME-3` | yes |
+
+The form default is `HME-4`. A newer CT002 answers to `TPM2-0`. The meter compares the CT type and both MAC addresses byte for byte, including letter case.
+
+| Field | Value |
+|---|---|
+| IP address | LAN address of the meter |
+| Poller MAC | 12 hex digits. Leave the suggested value. It identifies this integration. Pick another value only for a second poller. It has to differ from the CT MAC, and it has to be a MAC that no battery uses. |
+| CT MAC | 12 hex digits from Device Management in the Marstek app. Separators are optional. `000000000000` is accepted during setup; the integration then stores the MAC from the reply. |
+| Storage type | `HMG` for a Marstek Venus, `HMB` for a B2500 v1, `HMA` for a B2500 v2, `HMK` for a Greensolar v3 |
+| Storage number | Number in the storage model name. The default `50` sends `HMG-50` when the storage type is `HMG`. |
+| CT type | The row that matches the meter |
+
+The wire value for the storage is the type plus the number, for example `HMG-50`.
+
+### Command-line probe
+
+Edit the five values, then run the probe on a computer on the same LAN as the meter. A printed line means the meter answered. Fields are separated by `|`. The first two are the meter type and the meter MAC. Use those as the CT type and the CT MAC. The next two echo the storage id and the poller MAC. The next four numbers are phase A, phase B, phase C, and total power in watts.
+
+`No reply from the meter` means the datagram did not return. Check the IP, the LAN path, and the firewall or Docker route.
+
+Linux and macOS:
+
+```bash
+python3 - << 'PY'
+import socket
+import sys
+
+ip = "192.168.1.50"
+device = "HMG-50"        # storage type and number
+poller = "02A57E00C2A1"  # poller MAC, any MAC that no battery uses
+ct_type = "TPM2-0"       # HME-4, TPM2-0, or HME-3
+ct_mac = "AABBCCDDEEFF"  # CT MAC from the Marstek app
+
+message = f"|{device}|{poller}|{ct_type}|{ct_mac}|0|0|0".encode("ascii")
+base = 5 + len(message)
+length = str(base + len(str(base)))
+while str(base + len(length)) != length:
+    length = str(base + len(length))
+payload = bytearray([0x01, 0x02])
+payload += length.encode("ascii") + message + bytes([0x03])
+checksum = 0
+for byte in payload:
+    checksum ^= byte
+payload += f"{checksum:02x}".encode("ascii")
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(3)
+sock.sendto(bytes(payload), (ip, 12345))
+try:
+    data, _ = sock.recvfrom(2048)
+except socket.timeout:
+    sys.exit("No reply from the meter")
+text = data.split(bytes([0x03]), 1)[0]
+print(text.split(b"|", 1)[1].decode("ascii"))
+PY
+```
+
+To run that probe inside the Home Assistant container, use the container's Python and the same script. Replace `homeassistant` with the name from `docker ps` when it differs:
+
+```bash
+docker exec -i homeassistant python3 - << 'PY'
+import socket
+import sys
+
+ip = "192.168.1.50"
+device = "HMG-50"        # storage type and number
+poller = "02A57E00C2A1"  # poller MAC, any MAC that no battery uses
+ct_type = "TPM2-0"       # HME-4, TPM2-0, or HME-3
+ct_mac = "AABBCCDDEEFF"  # CT MAC from the Marstek app
+
+message = f"|{device}|{poller}|{ct_type}|{ct_mac}|0|0|0".encode("ascii")
+base = 5 + len(message)
+length = str(base + len(str(base)))
+while str(base + len(length)) != length:
+    length = str(base + len(length))
+payload = bytearray([0x01, 0x02])
+payload += length.encode("ascii") + message + bytes([0x03])
+checksum = 0
+for byte in payload:
+    checksum ^= byte
+payload += f"{checksum:02x}".encode("ascii")
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(3)
+sock.sendto(bytes(payload), (ip, 12345))
+try:
+    data, _ = sock.recvfrom(2048)
+except socket.timeout:
+    sys.exit("No reply from the meter")
+text = data.split(bytes([0x03]), 1)[0]
+print(text.split(b"|", 1)[1].decode("ascii"))
+PY
+```
+
+Windows PowerShell:
+
+```powershell
+$ip = "192.168.1.50"
+$device = "HMG-50"         # storage type and number
+$poller = "02A57E00C2A1"   # poller MAC, any MAC that no battery uses
+$ctType = "TPM2-0"         # HME-4, TPM2-0, or HME-3
+$ctMac = "AABBCCDDEEFF"    # CT MAC from the Marstek app
+
+$msgBytes = [Text.Encoding]::ASCII.GetBytes("|$device|$poller|$ctType|$ctMac|0|0|0")
+$base = 5 + $msgBytes.Length
+$length = [string]($base + "$base".Length)
+while ([string]($base + $length.Length) -ne $length) {
+    $length = [string]($base + $length.Length)
+}
+$payload = New-Object System.Collections.Generic.List[byte]
+$payload.Add(1)
+$payload.Add(2)
+$payload.AddRange([Text.Encoding]::ASCII.GetBytes($length))
+$payload.AddRange($msgBytes)
+$payload.Add(3)
+$checksum = 0
+foreach ($byte in $payload) { $checksum = $checksum -bxor $byte }
+$payload.AddRange([Text.Encoding]::ASCII.GetBytes("{0:x2}" -f $checksum))
+
+$udp = New-Object System.Net.Sockets.UdpClient
+$udp.Client.ReceiveTimeout = 3000
+[void]$udp.Send($payload.ToArray(), $payload.Count, $ip, 12345)
+$remote = New-Object System.Net.IPEndPoint ([Net.IPAddress]::Any, 0)
+try {
+    $data = $udp.Receive([ref]$remote)
+    $text = [Text.Encoding]::ASCII.GetString($data)
+    $head = $text.Substring(0, $text.LastIndexOf([char]3))
+    $head.Substring($head.IndexOf("|") + 1)
+} catch {
+    "No reply from the meter"
+} finally {
+    $udp.Close()
+}
+```
+
 ## Origin
 
 Marstek Power Meter is a standalone project. It is based on [hass_marstek-smart-meter](https://github.com/d-shmt/hass_marstek-smart-meter). The author of the original no longer maintains the repository and did not respond to pull requests, so this project was created.
