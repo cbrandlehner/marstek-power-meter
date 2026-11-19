@@ -3,19 +3,14 @@
     "step": {
       "user": {
         "title": "Marstek Power Meter",
-        "description": "Die MAC des CT-Zählers steht in der Marstek-App unter Geräteverwaltung (12 Hex-Zeichen). 000000000000 ist erlaubt und wird durch die MAC aus der Antwort ersetzt. Die Poller-MAC ist eine eigene Kennung dieser Integration und nicht die eines Akkus. Die Vorgabe kann bleiben, außer es gibt einen zweiten Poller.",
+        "description": "Gib die IP-Adresse des CT-Zählers im lokalen Netz ein. Die Integration erkennt den CT-Typ und die CT-MAC.",
         "data": {
-          "host": "IP-Adresse des CT Meters",
-          "battery_mac": "Poller-MAC",
-          "ct_mac": "MAC-Adresse des CT Meters",
-          "device_type_prefix": "Speicher-Typ",
-          "device_type_number": "Speicher-Nummer",
-          "ct_type": "CT-Typ"
+          "host": "IP-Adresse des CT Meters"
         }
       }
     },
     "error": {
-      "cannot_connect": "Verbindung zum Meter fehlgeschlagen. Prüfe IP-Adresse, CT-Typ und CT-MAC.",
+      "cannot_connect": "Der Zähler hat nicht geantwortet. Prüfe die IP-Adresse und den Weg zu UDP-Port 12345.",
       "invalid_mac": "Eine MAC braucht 12 Hex-Zeichen. Poller-MAC und CT-MAC müssen sich unterscheiden.",
       "invalid_auth": "Ungültige Zugangsdaten. Prüfe die MAC-Adressen.",
       "unknown": "Ein unbekannter Fehler ist aufgetreten."
@@ -40,23 +35,6 @@
       "normal_price_ele_in": { "name": "Hochtarif Bezug" },
       "low_price_ele_out": { "name": "Schwachlast Einspeisung" },
       "normal_price_ele_out": { "name": "Hochtarif Einspeisung" }
-    }
-  },
-  "selector": {
-    "ct_type": {
-      "options": {
-        "hme-4": "HME-4 (CT002)",
-        "tpm2-0": "TPM2-0 (CT002 neu)",
-        "hme-3": "HME-3 (CT003)"
-      }
-    },
-    "device_type_prefix": {
-      "options": {
-        "hmg": "HMG (Marstek Venus)",
-        "hmb": "HMB (B2500 Speicher v1)",
-        "hma": "HMA (B2500 Speicher v2)",
-        "hmk": "HMK (Greensolar Speicher v3)"
-      }
     }
   }
 }

@@ -63,6 +63,11 @@ ENERGY_LABELS = (
 )
 ENERGY_WH_PER_COUNT = 0.1
 
+# Tried in this order. The meter answers only its own type.
+DISCOVERY_CT_TYPES = ("TPM2-0", "HME-4", "HME-3")
+DISCOVERY_DEVICE_TYPE = "HMG-50"
+WILDCARD_CT_MAC = "000000000000"
+
 _MAC_RE = re.compile(r"[0-9A-Fa-f]{12}")
 
 
@@ -81,18 +86,29 @@ def canonical_mac(value: str) -> str:
 class MarstekCtApi:
     """API to communicate with the Marstek CT meter."""
 
-    def __init__(self, host, device_type, battery_mac, ct_mac, ct_type):
+    def __init__(
+        self,
+        host,
+        device_type,
+        battery_mac,
+        ct_mac,
+        ct_type,
+        port=12345,
+        timeout=3.0,
+        retries=3,
+        retry_delay=0.3,
+    ):
         self._host = host
-        self._port = 12345
+        self._port = port
         self._device_type = device_type
         self._battery_mac = battery_mac
         self._ct_mac = ct_mac
         self._ct_type = ct_type
 
         # One lost UDP packet would otherwise mark every sensor unavailable.
-        self._timeout = 3.0
-        self._retries = 3
-        self._retry_delay = 0.3
+        self._timeout = timeout
+        self._retries = retries
+        self._retry_delay = retry_delay
 
         self._payload = self._build_payload()
 
@@ -226,6 +242,64 @@ class MarstekCtApi:
             if attempt < self._retries:
                 time.sleep(self._retry_delay)
         return {"error": last_error}
+
+
+def discover_meter(
+    host: str,
+    poller_mac: str,
+    *,
+    port: int = 12345,
+    timeout: float = 1.0,
+    retries: int = 2,
+) -> dict:
+    """Find the CT type and MAC. The first type that answers wins.
+
+    The poller MAC stays the same for every attempt, so a silent type does
+    not take an extra slot. Storage type is a label the meter does not check.
+    """
+    last_error = "No response from meter"
+    for ct_type in DISCOVERY_CT_TYPES:
+        api = MarstekCtApi(
+            host,
+            DISCOVERY_DEVICE_TYPE,
+            poller_mac,
+            WILDCARD_CT_MAC,
+            ct_type,
+            port=port,
+            timeout=timeout,
+            retries=retries,
+            retry_delay=0.2,
+        )
+        result = api.fetch_data()
+        if not isinstance(result, dict) or "error" in result:
+            if isinstance(result, dict) and result.get("error"):
+                last_error = str(result["error"])
+            continue
+        reported_mac = result.get("meter_mac_code")
+        if not isinstance(reported_mac, str):
+            last_error = "Invalid response from meter"
+            continue
+        try:
+            ct_mac = canonical_mac(reported_mac)
+        except ValueError:
+            last_error = "Invalid response from meter"
+            continue
+        reported_type = result.get("meter_dev_type")
+        if isinstance(reported_type, str) and reported_type in DISCOVERY_CT_TYPES:
+            found_type = reported_type
+        else:
+            found_type = ct_type
+        found = {
+            "host": host,
+            "device_type": DISCOVERY_DEVICE_TYPE,
+            "battery_mac": poller_mac,
+            "ct_mac": ct_mac,
+            "ct_type": found_type,
+        }
+        if any(result.get(key) is not None for key in ENERGY_LABELS):
+            found["has_energy"] = True
+        return found
+    return {"error": last_error}
 
 
 class CannotConnect(Exception):

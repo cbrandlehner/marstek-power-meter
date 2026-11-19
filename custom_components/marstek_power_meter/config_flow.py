@@ -7,35 +7,15 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
-)
 
-from .api import ENERGY_LABELS, MarstekCtApi, CannotConnect, canonical_mac
+from .api import discover_meter
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
-# Selector keys stay lowercase. The meter compares the wire values byte for byte.
-CT_TYPE_BY_KEY = {
-    "hme-4": "HME-4",
-    "tpm2-0": "TPM2-0",
-    "hme-3": "HME-3",
-}
-DEVICE_PREFIX_BY_KEY = {
-    "hmg": "HMG",
-    "hmb": "HMB",
-    "hma": "HMA",
-    "hmk": "HMK",
-}
 
 
 def new_poller_mac() -> str:
@@ -45,107 +25,37 @@ def new_poller_mac() -> str:
     return raw.hex().upper()
 
 
-def _user_schema(poller_mac: str) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(CONF_HOST): str,
-            vol.Required("battery_mac", default=poller_mac): str,
-            vol.Required("ct_mac"): str,
-            vol.Required("device_type_prefix", default="hmg"): SelectSelector(
-                SelectSelectorConfig(
-                    options=list(DEVICE_PREFIX_BY_KEY),
-                    translation_key="device_type_prefix",
-                    mode=SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Required("device_type_number", default="50"): str,
-            vol.Required("ct_type", default="hme-4"): SelectSelector(
-                SelectSelectorConfig(
-                    options=list(CT_TYPE_BY_KEY),
-                    translation_key="ct_type",
-                    mode=SelectSelectorMode.DROPDOWN,
-                )
-            ),
-        }
-    )
-
-
-async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-    """Validate the user input and bind the entry to the CT that answered."""
-    api = MarstekCtApi(
-        host=data[CONF_HOST],
-        device_type=data["device_type"],
-        battery_mac=data["battery_mac"],
-        ct_mac=data["ct_mac"],
-        ct_type=data["ct_type"],
-    )
-
-    result = await hass.async_add_executor_job(api.fetch_data)
-    if isinstance(result, dict) and "error" in result:
-        raise CannotConnect(result["error"])
-
-    reported_mac = result.get("meter_mac_code") if isinstance(result, dict) else None
-    if isinstance(reported_mac, str):
-        try:
-            data["ct_mac"] = canonical_mac(reported_mac)
-        except ValueError:
-            pass
-
-    reported_type = result.get("meter_dev_type") if isinstance(result, dict) else None
-    if isinstance(reported_type, str) and reported_type in CT_TYPE_BY_KEY.values():
-        data["ct_type"] = reported_type
-
-    if any(result.get(key) is not None for key in ENERGY_LABELS):
-        data["has_energy"] = True
-
-    return {"title": f"Marstek Power Meter {data[CONF_HOST]}"}
-
-
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for the integration."""
 
     VERSION = 1
 
-    def __init__(self) -> None:
-        self._poller_mac = new_poller_mac()
-
     async def async_step_user(self, user_input=None):
-        """Handle the initial step."""
+        """Ask for the meter IP, then detect CT type and MAC."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            final_data = dict(user_input)
-            prefix = DEVICE_PREFIX_BY_KEY[final_data["device_type_prefix"]]
-            final_data["ct_type"] = CT_TYPE_BY_KEY[final_data["ct_type"]]
-            final_data["device_type"] = (
-                f"{prefix}-{final_data['device_type_number']}"
-            )
-            final_data.pop("device_type_prefix", None)
-            final_data.pop("device_type_number", None)
-
+            host = str(user_input[CONF_HOST]).strip()
             try:
-                final_data["battery_mac"] = canonical_mac(final_data["battery_mac"])
-                final_data["ct_mac"] = canonical_mac(final_data["ct_mac"])
-            except ValueError:
-                errors["base"] = "invalid_mac"
+                found = await self.hass.async_add_executor_job(
+                    discover_meter, host, new_poller_mac()
+                )
+            except Exception:
+                _LOGGER.exception("Unexpected error during discovery")
+                errors["base"] = "unknown"
             else:
-                if final_data["battery_mac"].upper() == final_data["ct_mac"].upper():
-                    errors["base"] = "invalid_mac"
+                if not isinstance(found, dict) or "error" in found:
+                    errors["base"] = "cannot_connect"
                 else:
-                    try:
-                        info = await validate_input(self.hass, final_data)
-                    except CannotConnect:
-                        errors["base"] = "cannot_connect"
-                    except Exception:
-                        _LOGGER.exception("Unexpected error during validation")
-                        errors["base"] = "unknown"
-                    else:
-                        await self.async_set_unique_id(final_data["ct_mac"].upper())
-                        self._abort_if_unique_id_configured()
-                        return self.async_create_entry(title=info["title"], data=final_data)
+                    await self.async_set_unique_id(found["ct_mac"].upper())
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=f"Marstek Power Meter {host}",
+                        data=found,
+                    )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_user_schema(self._poller_mac),
+            data_schema=vol.Schema({vol.Required(CONF_HOST): str}),
             errors=errors,
         )

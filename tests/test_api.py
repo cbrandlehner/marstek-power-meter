@@ -2,8 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Parser and payload tests. They do not talk to a meter."""
+"""Parser, payload, and discovery tests. Discovery talks to a local UDP fake."""
+import socket
 import sys
+import threading
 import unittest
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from api import (  # noqa: E402
     STX,
     MarstekCtApi,
     canonical_mac,
+    discover_meter,
 )
 
 
@@ -84,6 +87,111 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(parsed["low_price_ele_out"], 2.0)
         self.assertEqual(parsed["normal_price_ele_out"], 0.0)
         self.assertEqual(parsed["A_chrg_nb"], 0)
+
+
+class FakeMeter:
+    """UDP peer that answers one CT type and only an inspection poll."""
+
+    def __init__(self, ct_type: str, ct_mac: str, tail: str) -> None:
+        self.ct_type = ct_type
+        self.ct_mac = ct_mac
+        self.tail = tail
+        self.seen: list[list[str]] = []
+        self._stop = threading.Event()
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("127.0.0.1", 0))
+        self.port = self._sock.getsockname()[1]
+        self._sock.settimeout(0.1)
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def __enter__(self) -> "FakeMeter":
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1)
+        self._sock.close()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                data, addr = self._sock.recvfrom(2048)
+            except socket.timeout:
+                continue
+            try:
+                etx = data.index(bytes([ETX]))
+            except ValueError:
+                continue
+            fields = [part.decode("ascii") for part in data[:etx].split(b"|")[1:]]
+            self.seen.append(fields)
+            if len(fields) < 7:
+                continue
+            device, poller, ct_type, ct_mac, phase, power, participate = fields[:7]
+            if ct_type != self.ct_type or ct_mac != "000000000000":
+                continue
+            if (phase, power, participate) != ("0", "0", "0"):
+                continue
+            body = f"|{self.ct_type}|{self.ct_mac}|{device}|{poller}|{self.tail}"
+            self._sock.sendto(frame(body), addr)
+
+
+POWER_TAIL = "5|-34|28|0|0|0|0|0|-80|7|0|0|0|0|0|0|0|0|0|0|"
+ENERGY_TAIL = "1|2|3|6|0|0|0|0|-70|1|0|0|0|0|0|0|0|0|0|0|100|0|20|0"
+
+
+class DiscoverTests(unittest.TestCase):
+    def test_silent_type_does_not_hide_the_meter_that_answers(self):
+        """Stored identity comes from the reply, and the probe stays an inspection poll."""
+        with FakeMeter("HME-4", "AABBCCDDEEFF", POWER_TAIL) as meter:
+            found = discover_meter(
+                "127.0.0.1",
+                "02A57E00C2A1",
+                port=meter.port,
+                timeout=0.4,
+                retries=1,
+            )
+        self.assertEqual(
+            found,
+            {
+                "host": "127.0.0.1",
+                "device_type": "HMG-50",
+                "battery_mac": "02A57E00C2A1",
+                "ct_mac": "AABBCCDDEEFF",
+                "ct_type": "HME-4",
+            },
+        )
+        self.assertTrue(meter.seen)
+        for fields in meter.seen:
+            self.assertEqual(fields[0], "HMG-50")
+            self.assertEqual(fields[1], "02A57E00C2A1")
+            self.assertEqual(fields[3], "000000000000")
+            self.assertEqual(fields[4:7], ["0", "0", "0"])
+
+    def test_energy_counters_mark_the_meter(self):
+        with FakeMeter("TPM2-0", "001122334455", ENERGY_TAIL) as meter:
+            found = discover_meter(
+                "127.0.0.1",
+                "02A57E00C2A1",
+                port=meter.port,
+                timeout=0.4,
+                retries=1,
+            )
+        self.assertEqual(found["ct_type"], "TPM2-0")
+        self.assertEqual(found["ct_mac"], "001122334455")
+        self.assertTrue(found["has_energy"])
+
+    def test_no_reply_is_an_error(self):
+        with FakeMeter("NOPE", "AABBCCDDEEFF", POWER_TAIL) as meter:
+            found = discover_meter(
+                "127.0.0.1",
+                "02A57E00C2A1",
+                port=meter.port,
+                timeout=0.2,
+                retries=1,
+            )
+        self.assertIn("error", found)
+        self.assertNotIn("ct_mac", found)
 
 
 if __name__ == "__main__":

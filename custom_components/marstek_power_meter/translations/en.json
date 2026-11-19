@@ -3,19 +3,14 @@
     "step": {
       "user": {
         "title": "Marstek Power Meter",
-        "description": "The CT MAC is the 12-character hex string from Device Management in the Marstek app. 000000000000 is accepted and replaced by the MAC from the reply. The poller MAC is an identity for this integration, not a battery. Leave the suggested value unless you run a second poller.",
+        "description": "Enter the IP address of the CT meter on the LAN. The integration detects the CT type and the CT MAC.",
         "data": {
-          "host": "IP Address of the CT Meter",
-          "battery_mac": "Poller MAC",
-          "ct_mac": "MAC Address of the CT Meter",
-          "device_type_prefix": "Storage Type",
-          "device_type_number": "Storage Number",
-          "ct_type": "CT Type"
+          "host": "IP Address of the CT Meter"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the meter. Check the IP address, CT type, and CT MAC.",
+      "cannot_connect": "The meter did not answer. Check the IP address and the path to UDP port 12345.",
       "invalid_mac": "A MAC must be 12 hex digits. The poller MAC and the CT MAC must differ.",
       "invalid_auth": "Invalid credentials. Check the MAC addresses.",
       "unknown": "An unknown error occurred."
@@ -40,23 +35,6 @@
       "normal_price_ele_in": { "name": "Peak Import Energy" },
       "low_price_ele_out": { "name": "Off-peak Export Energy" },
       "normal_price_ele_out": { "name": "Peak Export Energy" }
-    }
-  },
-  "selector": {
-    "ct_type": {
-      "options": {
-        "hme-4": "HME-4 (CT002)",
-        "tpm2-0": "TPM2-0 (newer CT002)",
-        "hme-3": "HME-3 (CT003)"
-      }
-    },
-    "device_type_prefix": {
-      "options": {
-        "hmg": "HMG (Marstek Venus)",
-        "hmb": "HMB (B2500 storage v1)",
-        "hma": "HMA (B2500 storage v2)",
-        "hmk": "HMK (Greensolar storage v3)"
-      }
     }
   }
 }

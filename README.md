@@ -3,7 +3,7 @@
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-integration-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-brightgreen.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/cbrandlehner/marstek-power-meter)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/cbrandlehner/marstek-power-meter)
 [![GitHub stars](https://img.shields.io/github/stars/cbrandlehner/marstek-power-meter?style=social&label=Star%20on%20GitHub)](https://github.com/cbrandlehner/marstek-power-meter)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/cbrandlehner?label=Sponsor)](https://github.com/sponsors/cbrandlehner)
 [![Unofficial](https://img.shields.io/badge/vendor_support-none-lightgrey.svg)](#notice)
@@ -14,7 +14,7 @@ Home Assistant integration for the Marstek CT002 (`HME-4` and the newer `TPM2-0`
 |---|---|
 | Domain | `marstek_power_meter` |
 | Name in Home Assistant | Marstek Power Meter |
-| Version | 1.0.1 |
+| Version | 1.1.0 |
 | Polling | UDP port 12345, every 5 seconds, up to 3 attempts per poll |
 | License | [MPL-2.0](LICENSE) |
 
@@ -45,26 +45,25 @@ Copy the folder `custom_components/marstek_power_meter` to `<config>/custom_comp
 
 ## Configuration
 
-The CT MAC is on the Device Management page in the Marstek app. It is 12 hex characters, with or without colons. `000000000000` is also valid. The integration then stores the MAC from the reply.
+Add the integration and enter the IP address of the CT meter. Nothing else is required.
 
-The poller MAC is an identity of this integration. The suggested value is a locally assigned address. It must not be a battery MAC, because the meter keeps one slot per MAC.
+Setup sends an inspection poll to UDP port 12345: phase 0, 0 W, and `participate=0`. The poll carries a generated poller MAC, the label `HMG-50`, and the wildcard CT MAC `000000000000`. The meter answers that wildcard, and it answers only its own CT type. Setup tries `TPM2-0`, then `HME-4`, then `HME-3`. Each try waits up to 1 second and is sent a second time when the first packet gets no reply. The first answer is kept. Its CT type and CT MAC are stored.
 
-| Field | Meaning |
+| Stored value | Source |
 |---|---|
-| IP address | Address of the CT meter on the LAN |
-| Poller MAC | Identity of this poll, not a battery MAC |
-| CT MAC | The meter itself, from the Marstek app |
-| Storage type | `HMG` Venus, `HMB` B2500 v1, `HMA` B2500 v2, `HMK` Greensolar v3 |
-| Storage number | Type number, default `50` (for example `HMG-50`) |
-| CT type | `HME-4` for the CT002, `TPM2-0` for a newer CT002, `HME-3` for the CT003 |
+| IP address | The address entered in the form |
+| Poller MAC | Generated for this integration. It is not a battery MAC. |
+| CT MAC | Taken from the reply |
+| Storage | `HMG-50`. The meter does not check this label. |
+| CT type | `TPM2-0` for a newer CT002, `HME-4` for an original CT002, `HME-3` for the CT003 |
 
-Total power, the three phases, and Wi-Fi RSSI are visible right after setup. Tariff energy counters exist only on the CT003 and the newer CT002 (`TPM2-0`). An original CT002 (`HME-4`) does not send them.
+Total power, the three phases, and Wi-Fi RSSI appear after setup. Tariff energy counters appear when the reply includes them. The CT003 and the newer CT002 (`TPM2-0`) send them. An original CT002 (`HME-4`) does not. An entry created before 1.1.0 keeps the values it already stored. Delete that entry and add the integration again to detect them.
 
 When the meter does not answer, use [Troubleshooting](#troubleshooting).
 
 ## Troubleshooting
 
-Setup sends one UDP datagram to port 12345 on the meter and waits up to 3 seconds for the reply. The datagram is an inspection poll: phase 0, 0 W, and `participate=0`. It stays out of the battery aggregation. The probes below send that same poll.
+After setup, each poll sends one UDP datagram to port 12345 and waits up to 3 seconds for the reply, with two further attempts. The datagram is the same inspection poll as setup. It stays out of the battery aggregation. The command-line probes below try the three CT types the same way setup does.
 
 ### Reachability and Docker
 
@@ -90,32 +89,21 @@ On Docker Desktop for macOS and Windows, host networking stays inside the Docker
 
 Home Assistant OS already attaches the system to the LAN. A router rule between VLANs still has to allow UDP port 12345 to the meter.
 
-### CT type and settings
+### CT types
 
-| Meter | CT type in the form | Tariff energy counters |
+| Meter | CT type the meter answers | Tariff energy counters |
 |---|---|---|
-| CT002, original | `HME-4` | no |
 | CT002, newer | `TPM2-0` | yes |
+| CT002, original | `HME-4` | no |
 | CT003 | `HME-3` | yes |
 
-The form default is `HME-4`. A newer CT002 answers to `TPM2-0`. The meter compares the CT type and both MAC addresses byte for byte, including letter case.
-
-| Field | Value |
-|---|---|
-| IP address | LAN address of the meter |
-| Poller MAC | 12 hex digits. Leave the suggested value. It identifies this integration. Pick another value only for a second poller. It has to differ from the CT MAC, and it has to be a MAC that no battery uses. |
-| CT MAC | 12 hex digits from Device Management in the Marstek app. Separators are optional. `000000000000` is accepted during setup; the integration then stores the MAC from the reply. |
-| Storage type | `HMG` for a Marstek Venus, `HMB` for a B2500 v1, `HMA` for a B2500 v2, `HMK` for a Greensolar v3 |
-| Storage number | Number in the storage model name. The default `50` sends `HMG-50` when the storage type is `HMG`. |
-| CT type | The row that matches the meter |
-
-The wire value for the storage is the type plus the number, for example `HMG-50`.
+The meter compares the CT type and the CT MAC byte for byte, including letter case. A request whose CT type is any other value gets no reply. `000000000000` is the wildcard CT MAC. The reply carries the meter's own type and MAC in the first two fields.
 
 ### Command-line probe
 
-Edit the five values, then run the probe on a computer on the same LAN as the meter. A printed line means the meter answered. Fields are separated by `|`. The first two are the meter type and the meter MAC. Use those as the CT type and the CT MAC. The next two echo the storage id and the poller MAC. The next four numbers are phase A, phase B, phase C, and total power in watts.
+Change the IP address, then run the probe on a computer on the same LAN as the meter. It tries `TPM2-0`, `HME-4`, and `HME-3` with the wildcard CT MAC. The printed type and the following line mean the meter answered. Fields on that line are separated by `|`. The first two are the meter type and the meter MAC. The next two echo `HMG-50` and the poller MAC. The next four numbers are phase A, phase B, phase C, and total power in watts.
 
-`No reply from the meter` means the datagram did not return. Check the IP, the LAN path, and the firewall or Docker route.
+`No reply from the meter` means none of the three datagrams came back. Check the IP, the LAN path, and the firewall or Docker route.
 
 Linux and macOS:
 
@@ -125,32 +113,37 @@ import socket
 import sys
 
 ip = "192.168.1.50"
-device = "HMG-50"        # storage type and number
-poller = "02A57E00C2A1"  # poller MAC, any MAC that no battery uses
-ct_type = "TPM2-0"       # HME-4, TPM2-0, or HME-3
-ct_mac = "AABBCCDDEEFF"  # CT MAC from the Marstek app
 
-message = f"|{device}|{poller}|{ct_type}|{ct_mac}|0|0|0".encode("ascii")
-base = 5 + len(message)
-length = str(base + len(str(base)))
-while str(base + len(length)) != length:
-    length = str(base + len(length))
-payload = bytearray([0x01, 0x02])
-payload += length.encode("ascii") + message + bytes([0x03])
-checksum = 0
-for byte in payload:
-    checksum ^= byte
-payload += f"{checksum:02x}".encode("ascii")
+def probe(ct_type):
+    message = f"|HMG-50|02A57E00C2A1|{ct_type}|000000000000|0|0|0".encode("ascii")
+    base = 5 + len(message)
+    length = str(base + len(str(base)))
+    while str(base + len(length)) != length:
+        length = str(base + len(length))
+    payload = bytearray([0x01, 0x02])
+    payload += length.encode("ascii") + message + bytes([0x03])
+    checksum = 0
+    for byte in payload:
+        checksum ^= byte
+    payload += f"{checksum:02x}".encode("ascii")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(1)
+    sock.sendto(bytes(payload), (ip, 12345))
+    try:
+        data, _ = sock.recvfrom(2048)
+    except socket.timeout:
+        return None
+    text = data.split(bytes([0x03]), 1)[0]
+    return text.split(b"|", 1)[1].decode("ascii")
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(3)
-sock.sendto(bytes(payload), (ip, 12345))
-try:
-    data, _ = sock.recvfrom(2048)
-except socket.timeout:
+for ct_type in ("TPM2-0", "HME-4", "HME-3"):
+    reply = probe(ct_type)
+    if reply:
+        print(ct_type)
+        print(reply)
+        break
+else:
     sys.exit("No reply from the meter")
-text = data.split(bytes([0x03]), 1)[0]
-print(text.split(b"|", 1)[1].decode("ascii"))
 PY
 ```
 
@@ -162,32 +155,37 @@ import socket
 import sys
 
 ip = "192.168.1.50"
-device = "HMG-50"        # storage type and number
-poller = "02A57E00C2A1"  # poller MAC, any MAC that no battery uses
-ct_type = "TPM2-0"       # HME-4, TPM2-0, or HME-3
-ct_mac = "AABBCCDDEEFF"  # CT MAC from the Marstek app
 
-message = f"|{device}|{poller}|{ct_type}|{ct_mac}|0|0|0".encode("ascii")
-base = 5 + len(message)
-length = str(base + len(str(base)))
-while str(base + len(length)) != length:
-    length = str(base + len(length))
-payload = bytearray([0x01, 0x02])
-payload += length.encode("ascii") + message + bytes([0x03])
-checksum = 0
-for byte in payload:
-    checksum ^= byte
-payload += f"{checksum:02x}".encode("ascii")
+def probe(ct_type):
+    message = f"|HMG-50|02A57E00C2A1|{ct_type}|000000000000|0|0|0".encode("ascii")
+    base = 5 + len(message)
+    length = str(base + len(str(base)))
+    while str(base + len(length)) != length:
+        length = str(base + len(length))
+    payload = bytearray([0x01, 0x02])
+    payload += length.encode("ascii") + message + bytes([0x03])
+    checksum = 0
+    for byte in payload:
+        checksum ^= byte
+    payload += f"{checksum:02x}".encode("ascii")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(1)
+    sock.sendto(bytes(payload), (ip, 12345))
+    try:
+        data, _ = sock.recvfrom(2048)
+    except socket.timeout:
+        return None
+    text = data.split(bytes([0x03]), 1)[0]
+    return text.split(b"|", 1)[1].decode("ascii")
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(3)
-sock.sendto(bytes(payload), (ip, 12345))
-try:
-    data, _ = sock.recvfrom(2048)
-except socket.timeout:
+for ct_type in ("TPM2-0", "HME-4", "HME-3"):
+    reply = probe(ct_type)
+    if reply:
+        print(ct_type)
+        print(reply)
+        break
+else:
     sys.exit("No reply from the meter")
-text = data.split(bytes([0x03]), 1)[0]
-print(text.split(b"|", 1)[1].decode("ascii"))
 PY
 ```
 
@@ -195,41 +193,50 @@ Windows PowerShell:
 
 ```powershell
 $ip = "192.168.1.50"
-$device = "HMG-50"         # storage type and number
-$poller = "02A57E00C2A1"   # poller MAC, any MAC that no battery uses
-$ctType = "TPM2-0"         # HME-4, TPM2-0, or HME-3
-$ctMac = "AABBCCDDEEFF"    # CT MAC from the Marstek app
 
-$msgBytes = [Text.Encoding]::ASCII.GetBytes("|$device|$poller|$ctType|$ctMac|0|0|0")
-$base = 5 + $msgBytes.Length
-$length = [string]($base + "$base".Length)
-while ([string]($base + $length.Length) -ne $length) {
-    $length = [string]($base + $length.Length)
+function Send-MarstekProbe($ctType) {
+    $msgBytes = [Text.Encoding]::ASCII.GetBytes("|HMG-50|02A57E00C2A1|$ctType|000000000000|0|0|0")
+    $base = 5 + $msgBytes.Length
+    $length = [string]($base + "$base".Length)
+    while ([string]($base + $length.Length) -ne $length) {
+        $length = [string]($base + $length.Length)
+    }
+    $payload = New-Object System.Collections.Generic.List[byte]
+    $payload.Add(1)
+    $payload.Add(2)
+    $payload.AddRange([Text.Encoding]::ASCII.GetBytes($length))
+    $payload.AddRange($msgBytes)
+    $payload.Add(3)
+    $checksum = 0
+    foreach ($byte in $payload) { $checksum = $checksum -bxor $byte }
+    $payload.AddRange([Text.Encoding]::ASCII.GetBytes("{0:x2}" -f $checksum))
+    $udp = New-Object System.Net.Sockets.UdpClient
+    $udp.Client.ReceiveTimeout = 1000
+    $remote = New-Object System.Net.IPEndPoint ([Net.IPAddress]::Any, 0)
+    try {
+        [void]$udp.Send($payload.ToArray(), $payload.Count, $ip, 12345)
+        $data = $udp.Receive([ref]$remote)
+        $text = [Text.Encoding]::ASCII.GetString($data)
+        $head = $text.Substring(0, $text.LastIndexOf([char]3))
+        return $head.Substring($head.IndexOf("|") + 1)
+    } catch {
+        return $null
+    } finally {
+        $udp.Close()
+    }
 }
-$payload = New-Object System.Collections.Generic.List[byte]
-$payload.Add(1)
-$payload.Add(2)
-$payload.AddRange([Text.Encoding]::ASCII.GetBytes($length))
-$payload.AddRange($msgBytes)
-$payload.Add(3)
-$checksum = 0
-foreach ($byte in $payload) { $checksum = $checksum -bxor $byte }
-$payload.AddRange([Text.Encoding]::ASCII.GetBytes("{0:x2}" -f $checksum))
 
-$udp = New-Object System.Net.Sockets.UdpClient
-$udp.Client.ReceiveTimeout = 3000
-[void]$udp.Send($payload.ToArray(), $payload.Count, $ip, 12345)
-$remote = New-Object System.Net.IPEndPoint ([Net.IPAddress]::Any, 0)
-try {
-    $data = $udp.Receive([ref]$remote)
-    $text = [Text.Encoding]::ASCII.GetString($data)
-    $head = $text.Substring(0, $text.LastIndexOf([char]3))
-    $head.Substring($head.IndexOf("|") + 1)
-} catch {
-    "No reply from the meter"
-} finally {
-    $udp.Close()
+$answered = $false
+foreach ($ctType in @("TPM2-0", "HME-4", "HME-3")) {
+    $reply = Send-MarstekProbe $ctType
+    if ($reply) {
+        $ctType
+        $reply
+        $answered = $true
+        break
+    }
 }
+if (-not $answered) { "No reply from the meter" }
 ```
 
 ## Origin
